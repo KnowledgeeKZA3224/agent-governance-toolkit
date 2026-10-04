@@ -1,18 +1,73 @@
-# External ACS falsification with SCQOS
+# External ACS Guardian falsification with SCQOS
 
-This example shows a simple idea:
+This example shows how to test an external **Agent Control Standard (ACS) Guardian** beside Microsoft Agent Governance Toolkit (AGT) without asking anyone to simply trust a product claim.
 
-**An agent asks to do something → ACS carries the request → an independent Guardian decides → the action happens only if allowed → the test checks what actually changed.**
+## The idea in plain English
 
-The external Guardian here is SCQOS. The important part is not the product name. The important part is that the test does not trust either implementation to grade itself.
+An AI agent asks to do something.
 
-## Why this example exists
+A Guardian decides whether that exact action should be allowed, denied, deferred, modified, or sent for approval.
 
-AGT already has extensive first-party tests. External interoperability asks a different question: can a separate Guardian receive the same class of governed request, fail closed on bad input, and leave evidence another engineer can reproduce?
+A serious test should not stop at **"the Guardian returned the right answer."** It should also verify whether the real bounded action actually happened, whether a blocked action stayed blocked, whether replay was rejected, and whether another engineer can reproduce the evidence.
 
-The public SCQOS ACS falsification lab exercises valid requests, wrong-authority requests, missing or tampered signatures, stale timestamps, replayed request IDs, chain mismatches, all five ACS-style dispositions, a controlled real filesystem consequence, and deliberately broken Guardians so an easy-to-game harness cannot report a trustworthy green result.
+The testing circuit is:
 
-## Reproduce
+```text
+same ACS request
+      |
+      +--> AGT / reference Guardian
+      |
+      +--> external Guardian
+                |
+                v
+       compare each result to
+       the pinned ACS requirement
+                |
+                v
+       inspect the real effect
+                |
+                v
+       preserve reproducible evidence
+```
+
+The **ACS requirement is the oracle**. One Guardian is not treated as correct merely because it disagrees with another.
+
+## Why falsification matters
+
+A weak test can accidentally reward a system that always allows, always denies, ignores signatures, ignores replay, skips tests, or simply reports "success."
+
+A stronger test deliberately introduces those broken behaviors and proves the harness catches them.
+
+That changes the question from:
+
+> Can this implementation produce a green demo?
+
+to:
+
+> Can another engineer reproduce the same inputs, attack the same assumptions, inspect the same side effects, and still obtain the same result?
+
+## Public worked example: SCQOS
+
+The public **SCQOS ACS Falsification Lab** is one independently implemented example of this pattern:
+
+https://github.com/KnowledgeeKZA3224/scqos-acs-falsification-lab
+
+Its published initial run records:
+
+- **20/20 SCQOS laboratory probes passed** against the live SCQOS decision substrate.
+- **All 6 deliberately broken harness conditions were detected**: allow-everything, deny-everything, signature-blind, replay-blind, fake-success, and skipped-test execution.
+- A controlled cloud-to-terminal consequence proof verified that:
+  - an authorized write occurred;
+  - a wrong-authority write did not occur;
+  - the first valid replay-target execution occurred once;
+  - the duplicate request was rejected;
+  - the target SHA-256 remained unchanged after the rejected replay.
+
+Those statements describe the **published pinned run only**.
+
+They are **not** a Microsoft certification, an OWASP certification, or a claim that either implementation is defect-free.
+
+## Reproduce the external run
 
 ```bash
 git clone https://github.com/KnowledgeeKZA3224/scqos-acs-falsification-lab.git
@@ -21,25 +76,30 @@ cd scqos-acs-falsification-lab
 ./scripts/verify-everything.sh
 ```
 
-The run writes machine-readable evidence under `run-evidence/` and exits non-zero when a required assertion or harness-integrity control fails.
+The lab writes machine-readable evidence under `run-evidence/`.
 
-## Initial published evidence
+## How to read a result
 
-The external project's pinned initial run records **20/20** SCQOS Guardian lab probes passing against its live ProofGate path, **6/6** deliberate harness mutants detected, and a controlled cloud-to-terminal consequence proof in which the authorized write happened, the wrong-authority write did not, replay was blocked, and the target digest stayed unchanged after the rejected replay.
+A green result means the exact pinned implementation, exact pinned ACS revision, exact probes, and exact recorded environment behaved as documented for that run.
 
-Those numbers describe that pinned run. They are **not** an OWASP certification, a Microsoft certification, or a claim that either implementation is defect-free.
+A green result does **not** mean:
 
-## Differential use with AGT
+- universally secure;
+- automatically correct for future ACS revisions;
+- certified by Microsoft or OWASP;
+- correct merely because another Guardian disagreed.
 
-The same harness can point at an AGT-backed Guardian and preserve the observations beside the SCQOS run. Differences are not decided by majority vote. The applicable ACS requirement is the oracle; each implementation is reported independently.
+The useful output is the evidence itself: inputs, decisions, side effects, failures, hashes, and enough information for another engineer to challenge the result.
 
-A green run means only that the pinned implementation produced the recorded behavior for the pinned inputs in that run. It does not mean certified, unbreakable, or automatically conformant in future versions.
+## Scope
+
+This contribution is documentation/example material only. It does not change AGT runtime behavior, security defaults, public APIs, package dependencies, or production code.
 
 ## Prior art and related projects
 
 - Microsoft Agent Governance Toolkit: https://github.com/microsoft/agent-governance-toolkit
-- OWASP Agent Control Standard project: https://github.com/GenAI-Security-Project/agent-control-standard
+- OWASP / GenAI Security Project Agent Control Standard: https://github.com/GenAI-Security-Project/agent-control-standard
 - SCQOS reference implementation: https://github.com/KnowledgeeKZA3224/scqos-reference-implementation
-- SCQOS ACS falsification lab: https://github.com/KnowledgeeKZA3224/scqos-acs-falsification-lab
+- SCQOS ACS Falsification Lab: https://github.com/KnowledgeeKZA3224/scqos-acs-falsification-lab
 
-SCQOS is an independent external project. This example does not make it a Microsoft-supported component and does not add it as an AGT dependency.
+SCQOS is an independent external project. This example does not make it a Microsoft-supported component and does not add SCQOS as an AGT dependency.
